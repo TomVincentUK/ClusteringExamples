@@ -23,8 +23,6 @@ plotting_range = 10
 N_hist_points = 256
 xy_hist = np.linspace(-plotting_range, plotting_range, N_hist_points)
 
-cov = np.eye(2)
-
 # Plotting
 fig = plt.figure(figsize=(9, 9))
 
@@ -81,7 +79,7 @@ slider_sx = Slider(
     label='${\sigma}_{x}$',
     valmin=1e-12, # Avoids divide by zero errors
     valmax=plotting_range,
-    valinit=np.sqrt(cov[0, 0]),
+    valinit=1,
     orientation='horizontal'
 )
 slider_sy = Slider(
@@ -89,7 +87,7 @@ slider_sy = Slider(
     label='${\sigma}_{y}$',
     valmin=1e-12, # Avoids divide by zero errors
     valmax=plotting_range,
-    valinit=np.sqrt(cov[1, 1]),
+    valinit=1,
     orientation='vertical'
 )
 slider_sx.vline.set_visible(False)
