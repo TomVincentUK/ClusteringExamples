@@ -60,7 +60,7 @@ def plot_domains(image, materials, width=12):
     
     material_axes = [fig.add_subplot(gs[1, i]) for i in range(n_mat)]
     for i, (ax, mat) in enumerate(zip(material_axes, materials)):
-        ax.imshow(mat)
+        ax.imshow(mat, interpolation='nearest')
         ax.set_title(f'material {i+1}')
     
     hist_ax = fig.add_subplot(gs[:, -1])
@@ -120,7 +120,7 @@ def plot_KMeans1D(image, k, width=12):
     
     cluster_axes = [fig.add_subplot(gs[1, i]) for i in range(k)]
     for i, (ax, mat) in enumerate(zip(cluster_axes, clusters)):
-        ax.imshow(mat)
+        ax.imshow(mat, interpolation='nearest')
         ax.set_title(f'cluster {i+1}', c=f'C{i+1}')
     
     hist_ax = fig.add_subplot(gs[:, -1])
@@ -187,7 +187,7 @@ def plot_GMM1D(image, k, width=12):
     
     cluster_axes = [fig.add_subplot(gs[1, i]) for i in range(k)]
     for i, (ax, mat) in enumerate(zip(cluster_axes, probs)):
-        ax.imshow(mat, vmin=0, vmax=1)
+        ax.imshow(mat, vmin=0, vmax=1, interpolation='nearest')
         ax.set_title( f'$P$(cluster {i+1})', c=f'C{i+1}')
     
     hist_ax = fig.add_subplot(gs[:, -1])
