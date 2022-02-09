@@ -89,9 +89,9 @@ def plot_domains(image, materials, width=12):
     fig.tight_layout()
     return fig
 
-def plot_KMeans1D(image, k, width=12):
+def plot_KMeans1D(image, k, width=12, **kwargs):
         
-    kmeans = KMeans(k, n_init=100).fit(image.reshape(-1, 1))
+    kmeans = KMeans(k, n_init=100, **kwargs).fit(image.reshape(-1, 1))
     labels = kmeans.labels_.reshape(image.shape)
     means = kmeans.cluster_centers_.flatten()
     
@@ -152,9 +152,10 @@ def plot_KMeans1D(image, k, width=12):
     fig.tight_layout()
     return fig, kmeans
     
-def plot_GMM1D(image, k, width=12):
+def plot_GMM1D(image, k, width=12, **kwargs):
         
-    gmm = GaussianMixture(n_components=k, n_init=100).fit(image.reshape(-1, 1))
+    gmm = GaussianMixture(n_components=k, n_init=100, **kwargs)
+    gmm.fit(image.reshape(-1, 1))
     labels = gmm.predict(image.reshape(-1, 1)).reshape(image.shape)
     weights = gmm.weights_.flatten()
     means = gmm.means_.flatten()
