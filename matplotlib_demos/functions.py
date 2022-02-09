@@ -5,12 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
 
 def Gaussian(x, mu, sigma):
     """Simple normal distribution with height 1"""
     return np.exp(-0.5*((x-mu)/sigma)**2)
 
-def material_image(populations, means, stds, image_size=256, feature_size=10):
+def gen_domains(populations, means, stds, image_size=128, feature_size=10):
     """
     Generate a fake image composed of 'materials' with an associated
     mean and standard deviation.
@@ -41,7 +42,7 @@ def material_image(populations, means, stds, image_size=256, feature_size=10):
     
     return image, materials
 
-def plot_material_image(image, materials, width=12):
+def plot_domains(image, materials, width=12):
     n_mat = len(materials)
     
     fig = plt.figure(figsize=(width, width/2 + width/(2*n_mat)))
@@ -53,7 +54,7 @@ def plot_material_image(image, materials, width=12):
     )
     
     im_ax = fig.add_subplot(gs[0, :n_mat])
-    im = im_ax.imshow(image)
+    im = im_ax.imshow(image, cmap=plt.cm.Spectral)
     im_ax.set_title(f'image')
     cbar = fig.colorbar(im, ax=im_ax)
     
@@ -90,7 +91,7 @@ def plot_material_image(image, materials, width=12):
 
 def plot_KMeans1D(image, k, width=12):
         
-    kmeans = KMeans(k).fit(image.reshape(-1, 1))
+    kmeans = KMeans(k, n_init=100).fit(image.reshape(-1, 1))
     labels = kmeans.labels_.reshape(image.shape)
     means = kmeans.cluster_centers_.flatten()
     
@@ -113,7 +114,7 @@ def plot_KMeans1D(image, k, width=12):
     )
     
     im_ax = fig.add_subplot(gs[0, :k])
-    im = im_ax.imshow(image)
+    im = im_ax.imshow(image, cmap=plt.cm.Spectral)
     im_ax.set_title(f'image')
     cbar = fig.colorbar(im, ax=im_ax)
     
@@ -150,3 +151,78 @@ def plot_KMeans1D(image, k, width=12):
 
     fig.tight_layout()
     return fig, kmeans
+    
+def plot_GMM1D(image, k, width=12):
+        
+    gmm = GaussianMixture(n_components=k, n_init=100).fit(image.reshape(-1, 1))
+    labels = gmm.predict(image.reshape(-1, 1)).reshape(image.shape)
+    weights = gmm.weights_.flatten()
+    means = gmm.means_.flatten()
+    stds = np.sqrt(gmm.covariances_.flatten())
+    
+    # Get maps of individual clusters in order of ascending mean
+    sorter = np.argsort(means)
+    clusters = [labels==sorter[i] for i in range(k)]
+    probs = [
+        gmm.predict_proba(image.reshape(-1, 1))[:, i].reshape(image.shape)
+        for i in sorter
+    ]
+    
+    weights = weights[sorter]
+    stds = stds[sorter]
+    means = means[sorter]
+    
+    fig = plt.figure(figsize=(width, width/2 + width/(2*k)))
+    gs = plt.GridSpec(
+        figure=fig,
+        nrows=2,
+        ncols=k+1,
+        width_ratios=k*[1/k,] + [1,]
+    )
+    
+    im_ax = fig.add_subplot(gs[0, :k])
+    im = im_ax.imshow(image, cmap=plt.cm.Spectral)
+    im_ax.set_title(f'image')
+    cbar = fig.colorbar(im, ax=im_ax)
+    
+    cluster_axes = [fig.add_subplot(gs[1, i]) for i in range(k)]
+    for i, (ax, mat) in enumerate(zip(cluster_axes, probs)):
+        ax.imshow(mat, vmin=0, vmax=1)
+        ax.set_title( f'$P$(cluster {i+1})', c=f'C{i+1}')
+    
+    hist_ax = fig.add_subplot(gs[:, -1])
+    hist_domain = np.linspace(image.min(), image.max(), 512)
+    hist_ax.hist(image.flatten(), bins=int(np.sqrt(image.size)), density=True)
+    for i in range(k):
+        hist_ax.plot(
+            hist_domain,
+            (
+                Gaussian(hist_domain, means[i], stds[i])
+                * weights[i] / (stds[i]*np.sqrt(2*np.pi))
+            ),
+            c=f'C{i+1}',
+            ls='--'
+        )
+        hist_ax.scatter(
+            image[clusters[i]],
+            0*image[clusters[i]],
+            marker='|',
+            lw=1,
+            alpha=0.5,
+            s=500,
+            c=f'C{i+1}',
+            zorder=3
+        )
+    hist_ax.set(
+        title=f'values',
+        yticks=[]
+    )
+    for side in ('top', 'left', 'right'):
+        hist_ax.spines[side].set_visible(False)
+
+    for ax in cluster_axes+[im_ax,]:
+        ax.set_axis_off()
+    cbar.outline.set_visible(False)
+
+    fig.tight_layout()
+    return fig, gmm
