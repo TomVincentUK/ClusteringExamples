@@ -3,6 +3,9 @@ Functions for data clustering demonstrations
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpecFromSubplotSpec
+from matplotlib.patches import Ellipse
+from matplotlib.transforms import Affine2D
 from scipy.ndimage import gaussian_filter
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
@@ -31,7 +34,7 @@ def gen_domains(populations, means, stds, image_size=128, feature_size=10):
     bounds[1:] = np.cumsum(100*populations/populations.sum())
     materials = [
         (field>=np.percentile(field, bounds[i]))
-        & (field<=np.percentile(field, bounds[i+1]))
+        & (field<=np.percentile(field, np.clip(bounds[i+1], 0, 100)))
         for i in range(populations.size)
     ]
     
@@ -41,6 +44,54 @@ def gen_domains(populations, means, stds, image_size=128, feature_size=10):
     ], axis=0)
     
     return image, materials
+
+def gen_domains2D(
+        populations,
+        means,
+        stds,
+        pearsons,
+        image_size=128,
+        feature_size=10):
+    """
+    Generate a pair of fake images composed of 'materials' with an
+    associated 2D mean and covariance.
+    """
+    populations = np.asarray(populations)
+    means = np.asarray(means)
+    stds = np.asarray(stds)
+    pearsons = np.asarray(pearsons)
+    
+    # Generate smooth noise
+    field = gaussian_filter(
+        np.random.randn(image_size, image_size),
+        feature_size
+    )
+    
+    # Convert relative populations to percentage of total image
+    bounds = np.zeros(populations.size+1)
+    bounds[1:] = np.cumsum(100*populations/populations.sum())
+    materials = [
+        (field>=np.percentile(field, bounds[i]))
+        & (field<=np.percentile(field, np.clip(bounds[i+1], 0, 100)))
+        for i in range(populations.size)
+    ]
+    
+    # mean zero, identity covariance noise to be modified
+    identity_noise = np.random.randn(2, image_size, image_size)
+    
+    images = np.zeros_like(identity_noise)
+    for mat, mean, std, pearson in zip(materials, means, stds, pearsons):
+        M = np.array([
+            [(1+pearson)*std[0], (pearson-1)*std[0]],
+            [(1+pearson)*std[1], (1-pearson)*std[1]]
+        ]) * np.sqrt(2)
+        
+        images += (
+            mean
+            + (M@identity_noise.reshape(2, -1)).T
+            ).T.reshape(images.shape) * mat.astype(float)
+    
+    return images, materials
 
 def plot_domains(image, materials, width=12):
     n_mat = len(materials)
@@ -86,6 +137,92 @@ def plot_domains(image, materials, width=12):
         ax.set_axis_off()
     cbar.outline.set_visible(False)
 
+    fig.tight_layout()
+    return fig
+
+def plot_domains2D(images, materials, width=12):
+    n_mat = len(materials)
+    
+    fig = plt.figure(figsize=(width, width/4 + width/(2*n_mat)))
+    gs = plt.GridSpec(
+        figure=fig,
+        nrows=2,
+        ncols=n_mat+1,
+        width_ratios=n_mat*[1/n_mat,] + [1,]
+    )
+    
+    subgrid0 = gs[0, :n_mat].subgridspec(1, 2)
+    
+    im_ax0 = fig.add_subplot(subgrid0[0])
+    im0 = im_ax0.imshow(images[0], cmap=plt.cm.Spectral)
+    im_ax0.set_title(f'image $A$')
+    cbar0 = fig.colorbar(im0, ax=im_ax0)
+    
+    im_ax1 = fig.add_subplot(subgrid0[1])
+    im1 = im_ax1.imshow(images[1], cmap=plt.cm.Spectral)
+    im_ax1.set_title(f'image $B$')
+    cbar1 = fig.colorbar(im1, ax=im_ax1)
+    
+    material_axes = [fig.add_subplot(gs[1, i]) for i in range(n_mat)]
+    for i, (ax, mat) in enumerate(zip(material_axes, materials)):
+        ax.imshow(mat, interpolation='nearest')
+        ax.set_title(f'material {i+1}')
+    
+    subgrid1 = GridSpecFromSubplotSpec(
+        nrows=2,
+        ncols=2,
+        subplot_spec=gs[:, -1],
+        height_ratios=[0.25, 1],
+        width_ratios=[1, 0.25]
+    )
+    scatter_ax = fig.add_subplot(subgrid1[1, 0])
+    hist_x_ax = fig.add_subplot(subgrid1[0, 0], sharex=scatter_ax)
+    hist_y_ax = fig.add_subplot(subgrid1[1, 1], sharey=scatter_ax)
+    
+    scat_alpha = 0.1
+    scatter = scatter_ax.scatter(*images.reshape(2, -1), alpha=scat_alpha, s=1)    
+    
+    hist_x_ax.hist(images[0].flatten(), bins=int(images.shape[-1]))
+    hist_y_ax.hist(
+        images[1].flatten(),
+        bins=int(images.shape[-1]),
+        orientation='horizontal'
+    )
+    
+    rug_params = dict(lw=0.4, alpha=scat_alpha, c='k',  s=100, zorder=3)
+    rug_x = hist_x_ax.scatter(
+        images[0].flatten(),
+        0*images[0].flatten(),
+        marker='|',
+        **rug_params
+    )
+    rug_y = hist_y_ax.scatter(
+        0*images[1].flatten(),
+        images[1].flatten(),
+        marker='_',
+        **rug_params
+    )
+    
+    scatter_ax.set(
+        xlabel='$A$',
+        ylabel='$B$',
+    )
+    for side in ('top', 'right'):
+        scatter_ax.spines[side].set_visible(False)
+    
+    hist_x_ax.set_yticks([])
+    for side in ('top', 'right', 'left'):
+        hist_x_ax.spines[side].set_visible(False)
+    
+    hist_y_ax.set_xticks([])
+    for side in ('top', 'right', 'bottom'):
+        hist_y_ax.spines[side].set_visible(False)
+
+    for ax in material_axes+[im_ax0, im_ax1]:
+        ax.set_axis_off()
+    for cbar in (cbar0, cbar1):
+        cbar.outline.set_visible(False)
+    
     fig.tight_layout()
     return fig
 
@@ -227,3 +364,25 @@ def plot_GMM1D(image, k, width=12, **kwargs):
 
     fig.tight_layout()
     return fig, gmm
+
+def confidence_ellipse(ax, mean, cov, **kwargs):
+    sigma_x, sigma_y = np.diag(cov)
+    pearson = cov[1, 0]/ (sigma_x*sigma_y)
+    
+    ellipse = Ellipse(
+        xy=(0, 0),
+        width=1,
+        height=1,
+        **kwargs
+    )
+    ax.add_patch(ellipse)
+    width = 2 * (1 + pearson)
+    height = 2 * (1 - pearson)
+    ellipse.set(width=width, height=height)
+    
+    transform = Affine2D()
+    transform.rotate_deg(45)
+    transform.scale(2*sigma_x, 2*sigma_y)
+    transform.translate(*mean)
+    
+    ellipse.set_transform(transform+ax.transData)
