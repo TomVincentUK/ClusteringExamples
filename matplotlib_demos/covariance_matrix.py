@@ -182,13 +182,14 @@ def covariance_matrix(N_points=512, plotting_range=10, N_hist_points=256):
         ellipse.set_transform(transform+scatter_ax.transData)
         
         fig.canvas.draw_idle()
-
-    for slider in (slider_x, slider_y, slider_sx, slider_sy, slider_rho):
+    
+    sliders = (slider_x, slider_y, slider_sx, slider_sy, slider_rho)
+    for slider in sliders:
         slider.on_changed(update)
 
     update(None) # Make sure initial values match sliders
-    return fig
+    return fig, sliders
 
 if __name__=='__main__':
-    fig = covariance_matrix()
+    fig, sliders = covariance_matrix()
     plt.show()
